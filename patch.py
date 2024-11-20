@@ -23,12 +23,17 @@ model = AutoModelForCausalLM.from_pretrained(model_path,
 
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 input_text = "Who does \"You-Know-Who\" refer to in Harry Potter?\n"
+
+with open("test.json", "r") as file:
+    data = json.load(file)
+    input_text = data["context"] + data["input"]
+
 input_ids = tokenizer(input_text, return_tensors="pt").input_ids.to(model.device)
 
 output = model.generate(
-    input_ids,
-    max_length=400,
+    input_ids[:, -3500:],
+    max_new_tokens=100,
     num_beams=1,
     do_sample=False
 )
-print(tokenizer.decode(output.cpu()[0]))
+print(tokenizer.decode(output.cpu()[0, 3500:]))

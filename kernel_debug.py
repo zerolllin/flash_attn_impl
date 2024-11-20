@@ -55,11 +55,11 @@ def _fwd_kernel(
             qk = qk * qk_scale + tl.where(offs_m[:, None] >= (start_n + offs_n)[None, :], 0, float("-inf"))
             m_ij = tl.max(qk, 1)
             m_i_new = tl.maximum(m_ij, m_i)
-            qk -= m_ij[:, None]
+            qk -= m_i_new[:, None]
         else:
             m_ij = tl.max(qk * qk_scale, 1)
             m_i_new = tl.maximum(m_ij, m_i)
-            qk = qk * qk_scale - m_ij[:, None]
+            qk = qk * qk_scale - m_i_new[:, None]
 
         p = tl.exp(qk)
         l_ij = tl.sum(p, 1)
