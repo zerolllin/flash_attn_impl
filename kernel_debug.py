@@ -40,7 +40,7 @@ def _fwd_kernel(
     q = tl.load(q_ptrs, mask=offs_m[:, None] < seqlen_q, other=0.0)
 
     qk_scale = softmax_scale
-    qk_scale *= 1.44269504
+    # qk_scale *= 1.44269504
 
     # defined as the original paper
     end_n = seqlen_k if not IS_CAUSAL else tl.minimum((start_m + 1) * BLOCK_M, seqlen_k)
@@ -53,27 +53,32 @@ def _fwd_kernel(
         qk += tl.where((start_n + offs_n)[None, :] < seqlen_k, 0, float("-inf"))
         if IS_CAUSAL:
             qk = qk * qk_scale + tl.where(offs_m[:, None] >= (start_n + offs_n)[None, :], 0, float("-inf"))
-            m_ij = tl.maximum(tl.max(qk, 1), m_i)
+            m_ij = tl.max(qk, 1)
+            m_i_new = tl.maximum(m_ij, m_i)
             qk -= m_ij[:, None]
         else:
-            m_ij = tl.maximum(tl.max(qk * qk_scale, 1), m_i)
+            m_ij = tl.max(qk * qk_scale, 1)
+            m_i_new = tl.maximum(m_ij, m_i)
             qk = qk * qk_scale - m_ij[:, None]
 
-        p = tl.math.exp2(qk)
+        p = tl.exp(qk)
         l_ij = tl.sum(p, 1)
 
-        alpha = tl.math.exp2(m_i - m_ij)
-        l_i = l_i * alpha + l_ij
-        acc = acc * alpha[:, None]
+        alpha = tl.exp(m_i - m_i_new)
+        # alpha2 = tl.exp(m_ij - m_i_new)
+        l_i_new = l_i * alpha + l_ij # * alpha2
+        acc = acc * alpha[:, None] # * l_i[:, None] / l_i_new[:, None]
 
         v = tl.load(v_ptrs, mask = offs_n[:, None] < (seqlen_k - start_n))
         p = p.to(tl.float16)
-        acc += tl.dot(p, v)
-        m_i = m_ij
+        acc += tl.dot(p, v) # * alpha2[:, None]
+        # pdb.set_trace()
+        m_i = m_i_new
+        l_i = l_i_new
 
         k_ptrs += BLOCK_N * stride_kn
         v_ptrs += BLOCK_N * stride_vn
-
+    
     acc = acc / l_i[:, None]
     
     out_ptrs = Out + off_b * stride_ob + off_h * stride_oh + (offs_m[:, None] * stride_om + offs_d[None, :])

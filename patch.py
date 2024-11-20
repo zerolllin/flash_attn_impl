@@ -5,7 +5,7 @@ import math
 import json
 import time
 
-from kernel import flash_attn_forward
+from kernel_debug import flash_attn_forward
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 def flash_attn(query, key, value, attn_mask=None, dropout_p=0.0, 
